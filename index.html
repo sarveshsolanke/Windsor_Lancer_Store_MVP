@@ -790,6 +790,77 @@ nav {
 }
 .ad-pause-pill.visible { display: flex; }
 
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  nav {
+    padding: 0 16px;
+    height: 54px;
+  }
+  .nav-links { gap: 4px; }
+  .nav-link { display: none; }
+  .nav-link[onclick*="sale"], .nav-link[onclick*="listing"]:last-of-type { display: none; }
+  .nav-btn { padding: 6px 12px; font-size: 12px; }
+  .nav-cart { padding: 6px 10px; font-size: 12px; }
+  .nav-name { font-size: 15px; }
+  .nav-logo img { width: 28px; height: 28px; }
+
+  .hero {
+    flex-direction: column-reverse;
+    padding: 32px 24px 40px;
+    gap: 24px;
+    min-height: unset;
+    align-items: center;
+    text-align: center;
+  }
+  .hero-content { width: 100%; }
+  .hero h1 { font-size: 36px; }
+  .hero p { font-size: 15px; max-width: 100%; }
+  .hero-actions { justify-content: center; flex-direction: column; gap: 10px; }
+  .hero-actions .btn { width: 100%; justify-content: center; }
+  .hero-stats { justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 28px; padding-top: 24px; }
+
+  .hero-image {
+    width: 200px !important;
+    height: 200px !important;
+  }
+  .hero-logo-img {
+    width: 180px !important;
+    height: 180px !important;
+  }
+
+  .winter-sale-strip {
+    padding: 28px 24px;
+    flex-direction: column;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  .wss-title { font-size: 26px; }
+  .wss-right { gap: 18px; }
+  .wss-stat-num { font-size: 26px; }
+
+  .ad-carousel-wrap { margin: 0; }
+
+  .section { padding: 32px 16px; }
+  .product-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .promo-banner { margin: 0 16px 32px; flex-direction: column; gap: 14px; text-align: center; }
+
+  .cart-layout { grid-template-columns: 1fr; padding: 16px; gap: 16px; }
+  .checkout-layout { grid-template-columns: 1fr; padding: 16px; gap: 16px; }
+  .detail-grid { grid-template-columns: 1fr; padding: 20px 16px; gap: 24px; }
+  .profile-layout { grid-template-columns: 1fr; padding: 16px; }
+  .admin-layout { padding: 20px 16px; }
+  .admin-stats { grid-template-columns: repeat(2, 1fr); }
+
+  .page-title { font-size: 22px; padding: 20px 16px 0; }
+  .page-sub { padding: 4px 16px 0; }
+  .breadcrumb { padding: 10px 16px; }
+  .divider-line { margin: 0 16px; }
+
+  .wss-code-row { flex-wrap: wrap; }
+  .form-grid { grid-template-columns: 1fr; }
+}
+
 </style>
 </head>
 <body>
