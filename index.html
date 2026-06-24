@@ -1860,6 +1860,12 @@ function renderReportsPreview() {
             <!-- slots injected by JS -->
           </div>
           <input type="file" id="apf-img-input" accept="image/*" style="display:none;" onchange="handleAdminImgUpload(this)" multiple />
+          <div id="apf-upload-status" style="display:none;font-size:13px;color:var(--navy);margin-top:8px;padding:8px 14px;background:#eef1f7;border-radius:8px;">
+            ⏳ Uploading image to cloud... please wait
+          </div>
+          <div style="margin-top:8px;font-size:12px;color:var(--gray4);">
+            💡 Images are uploaded to Cloudinary and work on all devices & phones
+          </div>
         </div>
 
         <input type="hidden" id="apf-edit-id" value="" />
@@ -1955,7 +1961,23 @@ function renderReportsPreview() {
 
     <div id="apanel-reports" class="adm-panel" style="display:none;padding:32px 40px;">
       <div style="font-size:20px;font-weight:700;margin-bottom:6px;">Export Reports</div>
-      <div style="font-size:14px;color:var(--gray4);margin-bottom:32px;">Download live data as an Excel workbook. Each report is a separate sheet inside the same file.</div>
+      <div style="font-size:14px;color:var(--gray4);margin-bottom:24px;">Download live data as an Excel workbook. Each report is a separate sheet inside the same file.</div>
+      <div id="cloud-setup-banner" style="background:#fff8e1;border:1.5px solid #f0c040;border-radius:12px;padding:20px 24px;margin-bottom:28px;">
+        <div style="font-weight:700;font-size:15px;margin-bottom:10px;">⚠️ Cross-Device Sync — 2-Minute Setup Required</div>
+        <div style="font-size:13px;color:#555;line-height:1.8;">
+          Images and product changes currently save locally. To sync across all devices (phone, computer, etc.), set up these two free services:<br><br>
+          <strong>Step 1 — Image Hosting (Cloudinary):</strong><br>
+          1. Go to <a href="https://cloudinary.com" target="_blank" style="color:var(--navy);">cloudinary.com</a> → Sign up free<br>
+          2. Settings → Upload Presets → Add Preset → set Mode to <strong>Unsigned</strong> → Save<br>
+          3. Copy your <strong>Cloud Name</strong> and <strong>Upload Preset name</strong><br>
+          4. Open this HTML file in a text editor, find <code>YOUR_CLOUD_NAME</code> and replace it<br><br>
+          <strong>Step 2 — Product Data Sync (JSONbin):</strong><br>
+          1. Go to <a href="https://jsonbin.io" target="_blank" style="color:var(--navy);">jsonbin.io</a> → Sign up free<br>
+          2. Create a new bin with content <code>[]</code> → copy the <strong>Bin ID</strong><br>
+          3. Go to API Keys → Create key → copy it<br>
+          4. In this file, replace <code>YOUR_BIN_ID</code> and <code>YOUR_API_KEY</code>
+        </div>
+      </div>
 
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:20px;max-width:900px;">
 
@@ -2296,19 +2318,61 @@ function renderTracking() {
 }
 
 // ── ADMIN ─────────────────────────────────────────
-// ── Persist adminProducts (with images) in localStorage ──────────────────
-function saveAdminProductsToStorage() {
+// ── Cross-device product storage using JSONbin.io (free) ─────────────────
+// 1. Sign up free at jsonbin.io
+// 2. Create a new bin with [] as content, copy the bin ID
+// 3. Go to API Keys, create a key, copy it
+// 4. Replace the values below
+const JSONBIN_BIN_ID  = 'YOUR_BIN_ID';   // e.g. '6659a1f1acd3cb34a843c1e2'
+const JSONBIN_API_KEY = 'YOUR_API_KEY';  // e.g. '$2a$10$...'
+
+let adminProducts = [...PRODUCTS.map(p => ({...p, stock: Math.floor(Math.random()*50)+5}))];
+let _jsonbinReady  = JSONBIN_BIN_ID !== 'YOUR_BIN_ID' && JSONBIN_API_KEY !== 'YOUR_API_KEY';
+
+async function saveAdminProductsToStorage() {
+  // Always save locally for instant feedback
   try { localStorage.setItem('lancerAdminProducts', JSON.stringify(adminProducts)); } catch(e) {}
+
+  // Also save to cloud if configured
+  if (!_jsonbinReady) return;
+  try {
+    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': JSONBIN_API_KEY },
+      body: JSON.stringify(adminProducts.map(p => ({
+        // Strip base64 images from cloud save (Cloudinary URLs are already compact)
+        ...p,
+        images: (p.images || []).filter(img => img && !img.startsWith('data:'))
+      })))
+    });
+  } catch(e) { console.warn('Cloud save failed:', e); }
 }
-function loadAdminProductsFromStorage() {
+
+async function loadAdminProductsFromStorage() {
+  // Try cloud first if configured
+  if (_jsonbinReady) {
+    try {
+      const res  = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+        headers: { 'X-Master-Key': JSONBIN_API_KEY }
+      });
+      const data = await res.json();
+      if (Array.isArray(data.record) && data.record.length > 0) {
+        adminProducts = data.record;
+        renderProducts();
+        renderHomePage();
+        return;
+      }
+    } catch(e) { console.warn('Cloud load failed, using local:', e); }
+  }
+  // Fall back to localStorage
   try {
     const raw = localStorage.getItem('lancerAdminProducts');
-    if (raw) { adminProducts = JSON.parse(raw); return true; }
+    if (raw) { adminProducts = JSON.parse(raw); renderProducts(); }
   } catch(e) {}
-  return false;
 }
-let adminProducts = [...PRODUCTS.map(p => ({...p, stock: Math.floor(Math.random()*50)+5}))];
-loadAdminProductsFromStorage(); // override with saved data if available
+
+// Load on startup
+loadAdminProductsFromStorage();
 
 function renderAdmin() {
   const tbody = document.getElementById('admin-tbody');
@@ -2631,19 +2695,72 @@ function renderImgSlots() {
   if (filled === 5) return;
 }
 
-function handleAdminImgUpload(input) {
-  const files = Array.from(input.files).slice(0, 5);
-  files.forEach((file, fi) => {
-    const targetSlot = typeof window._imgSlotTarget === 'number' ? window._imgSlotTarget : fi;
-    const reader = new FileReader();
-    reader.onload = e => {
-      apfImages[targetSlot] = e.target.result;
-      window._imgSlotTarget = null;
-      renderImgSlots();
-    };
-    reader.readAsDataURL(file);
+// ── Cloudinary config — update with your own cloud name & upload preset ──
+// 1. Sign up free at cloudinary.com
+// 2. Go to Settings → Upload → Add upload preset → set to "Unsigned"
+// 3. Replace the values below with yours
+const CLOUDINARY_CLOUD_NAME   = 'YOUR_CLOUD_NAME';    // e.g. 'lancer-store'
+const CLOUDINARY_UPLOAD_PRESET = 'YOUR_UPLOAD_PRESET'; // e.g. 'lancer_products'
+
+async function uploadToCloudinary(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  fd.append('folder', 'lancer-store-products');
+  const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    method: 'POST', body: fd
   });
+  const data = await res.json();
+  if (!data.secure_url) throw new Error(data.error?.message || 'Upload failed');
+  return data.secure_url; // permanent https:// URL, works on all devices
+}
+
+async function handleAdminImgUpload(input) {
+  const files = Array.from(input.files).slice(0, 5);
+  if (!files.length) return;
+
+  // Show status
+  const status = document.getElementById('apf-upload-status');
+  if (status) status.style.display = 'block';
+
+  // Check if Cloudinary is configured
+  const cloudinaryReady = CLOUDINARY_CLOUD_NAME !== 'YOUR_CLOUD_NAME' && CLOUDINARY_UPLOAD_PRESET !== 'YOUR_UPLOAD_PRESET';
+
+  for (let fi = 0; fi < files.length; fi++) {
+    const file = files[fi];
+    const targetSlot = typeof window._imgSlotTarget === 'number' ? window._imgSlotTarget : fi;
+    window._imgSlotTarget = null;
+
+    if (cloudinaryReady) {
+      // Upload to cloud → permanent URL
+      try {
+        if (status) status.textContent = `⏳ Uploading image ${fi+1} of ${files.length}...`;
+        const url = await uploadToCloudinary(file);
+        apfImages[targetSlot] = url;
+        renderImgSlots();
+      } catch(e) {
+        showToast('❌ Upload failed: ' + e.message, 'error');
+      }
+    } else {
+      // Cloudinary not configured → fall back to base64 with warning
+      await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          apfImages[targetSlot] = e.target.result;
+          renderImgSlots();
+          resolve();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  }
+
+  if (status) status.style.display = 'none';
   input.value = '';
+
+  if (!cloudinaryReady) {
+    showToast('⚠️ Using local storage — images won't sync across devices. Set up Cloudinary to fix this.', 'error');
+  }
 }
 
 function removeAdminImg(i) {
@@ -2705,17 +2822,13 @@ function saveAdminProduct() {
   }
   apfImages = [null,null,null,null,null];
   document.getElementById('admin-prod-form').style.display = 'none';
-  saveAdminProductsToStorage();
-  renderAdminProducts();
-  renderProducts();
+  saveAdminProductsToStorage().then(() => { renderAdminProducts(); renderProducts(); });
 }
 
 function deleteAdminProduct(id) {
   if (!confirm('Delete this product?')) return;
   adminProducts = adminProducts.filter(p => p.id !== id);
-  saveAdminProductsToStorage();
-  renderAdminProducts();
-  renderProducts();
+  saveAdminProductsToStorage().then(() => { renderAdminProducts(); renderProducts(); });
   showToast('🗑 Product deleted', 'gold');
 }
 
